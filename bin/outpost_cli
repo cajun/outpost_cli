@@ -86,7 +86,7 @@ def two_borders()
 
   log_obj.width = (board_obj.width / 3)
   board_obj.width   = (board_obj.width - log_obj.width) - 2
-  log_obj.x       = board_obj.width + 1
+  log_obj.x       = board_obj.width + 3
 
   console_obj.y = board_obj.height + title_obj.height + console_obj.height - 1
 
@@ -105,16 +105,19 @@ def two_borders()
 
   adj = board_obj.height / 8
   8.times do |line|
-    left.move(2 + (line * adj) , 0)
+    left.move(2 + (line * adj) , 2)
     left.hline('-'.to_c, board_obj.width)
-    left.addstr(line.to_s)
+    left.move(2 + (line * adj) + (adj / 2), 1)
+    left.addstr((line + 1).to_s)
   end
 
   adj = board_obj.width / 8
+  r = ('a' .. 'h')
   8.times do |line|
     left.move(2, line * adj)
     left.vline('|'.to_c, board_obj.height)
-    left.addstr(line.to_s)
+    left.move(1, (line * adj) + (adj / 2))
+    left.addstr(r.to_a[line])
   end
 
   right.border(*([0]*8))
