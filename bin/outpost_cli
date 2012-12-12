@@ -18,41 +18,83 @@ require 'bundler/setup'
 
 require "ncurses"
 
-offset_height = 1
-offset_width  = 1
 
-console_height = title_height
-console_width  = title_witht
+class Window
+  attr_accessor :height, :width, :x, :y
 
-board_width   = (Ncurses.COLS() * (2/3)).to_i
-board_height  = (Ncurses.LINES() * (2/3)).to_i
+  def initialize opts = {}
+    opts = defaults.merge opts
 
-log_width  = Ncurses.COLS() - board_width
-log_height = board_height
+    @height = opts[:height]
+    @width  = opts[:width]
+    @x      = opts[:x]
+    @y      = opts[:y]
+  end
 
-def offset_rec
- [ 1,1,0,0 ]
+  def defaults
+    {
+      height:  Ncurses.LINES() - 1,
+      width:   Ncurses.COLS() - 1,
+      x:       1,
+      y:       1
+    }
+  end
+
+  def rec
+    [ height, width, y, x ]
+  end
+
+  def curses
+    @win ||= Ncurses::WINDOW.new(*rec)
+  end
+
 end
 
-def title_window
- rec = [ 3, Ncurses.LINES(), 0, 0 ]
- Ncurses::WINDOW.new( *rec )
+class Title < Window
+  def initialize opts = {}
+    super opts
+    @height = 3
+  end
 end
 
-def board_window
- rec = [ Ncurses.LINES() - , Ncurses.LINES(), 0, 0 ]
- Ncurses::WINDOW.new( *rec )
+class Log < Window
 end
 
+class Board < Window
+end
+
+class Console < Window
+  def initialize opts = {}
+    super opts
+    @height = 3
+  end
+end
 
 def two_borders()
   # make a new window as tall as the screen and half as wide, in the left half
   # of the screen
-  title = title_window
+  title_obj   = Title.new
+  board_obj   = Board.new
+  log_obj     = Log.new
+  console_obj = Console.new
 
-  left  = Ncurses::WINDOW.new(Ncurses.LINES() - 8, (Ncurses.COLS() / 2 ), 4, 0)
-  right = Ncurses::WINDOW.new(Ncurses.LINES() - 8, (Ncurses.COLS() - Ncurses.COLS()  / 2 ), 4, (Ncurses.COLS() / 2 ))
-  console = Ncurses::WINDOW.new(3, Ncurses.COLS(), (Ncurses.LINES() - 4), 0)
+  board_obj.height = board_obj.height - ((title_obj.height + console_obj.height) + 4)
+  log_obj.height   = board_obj.height
+
+  board_obj.y = title_obj.height + 1
+  log_obj.y   = board_obj.y
+
+  log_obj.width = (board_obj.width / 3)
+  board_obj.width   = (board_obj.width - log_obj.width) - 2
+  log_obj.x       = board_obj.width + 1
+
+  console_obj.y = board_obj.height + title_obj.height + console_obj.height - 1
+
+
+  title   = title_obj.curses
+  left    = board_obj.curses
+  right   = log_obj.curses
+  console = console_obj.curses
 
   title.border(*([0]*8))
   title.addstr("title panel")
@@ -60,17 +102,19 @@ def two_borders()
 
   left.border(*([0]*8))
   left.addstr("chess board")
-  left.move(3, 0)
 
+  adj = board_obj.height / 8
   8.times do |line|
-    left.move(line * 3, 0)
-    left.hline('-'.to_c, (Ncurses.COLS() / 2))
-    left.vline('|'.to_c, (Ncurses.LINES() - 4))
+    left.move(2 + (line * adj) , 0)
+    left.hline('-'.to_c, board_obj.width)
+    left.addstr(line.to_s)
   end
 
+  adj = board_obj.width / 8
   8.times do |line|
-    left.move(3, line * 3)
-    left.vline('|'.to_c, (Ncurses.LINES() - 4))
+    left.move(2, line * adj)
+    left.vline('|'.to_c, board_obj.height)
+    left.addstr(line.to_s)
   end
 
   right.border(*([0]*8))
