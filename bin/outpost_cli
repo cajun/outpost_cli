@@ -11,143 +11,119 @@
   #Pathname.new(__FILE__).realpath)
 
 require 'rubygems'
-require 'bundler/setup'
+#require 'bundler/setup'
 
 #load Gem.bin_path('outpost_cli', 'outpost_cli')
 
+require "curses"
 
-require "ncurses"
-
-
-class Window
-  attr_accessor :height, :width, :x, :y
-
-  def initialize opts = {}
-    opts = defaults.merge opts
-
-    @height = opts[:height]
-    @width  = opts[:width]
-    @x      = opts[:x]
-    @y      = opts[:y]
+class Game
+  def board
+    'hiya'
   end
 
-  def defaults
-    {
-      height:  Ncurses.LINES() - 1,
-      width:   Ncurses.COLS() - 1,
-      x:       1,
-      y:       1
-    }
+  def move x,y
   end
 
-  def rec
-    [ height, width, y, x ]
+  def ai_move
   end
 
-  def curses
-    @win ||= Ncurses::WINDOW.new(*rec)
+  def set
+  end
+
+  def draw?
+    true
+  end
+
+  def player
+    'x'
+  end
+
+  def winner
+   'o'
+  end
+end
+
+
+STATUS_LINE = 10
+STATUS_LINE_LENGTH = 23
+
+def init_screen
+  Curses.noecho # do not show typed keys
+  Curses.init_screen
+  Curses.stdscr.keypad(true) # enable arrow keys
+  begin
+    yield
+  ensure
+    Curses.close_screen
+  end
+end
+
+def write(line, column, text)
+  Curses.setpos(line, column)
+  Curses.addstr(text);
+end
+
+def draw_board
+  width = Curses.cols / 3
+  height = Curses.lines - 20
+
+  8.times do |col|
+    8.times do |row|
+      square col , row, width, height
+    end
   end
 
 end
 
-class Title < Window
-  def initialize opts = {}
-    super opts
-    @height = 3
+def square x,y, total_width, total_height
+  width = total_width / 8
+  height = total_height / 8
+  win = Curses::Window.new height,width,y * height, (x * width) + total_width
+  win.box("|", "-")
+
+  win.color_set Curses::COLOR_BLUE
+  win.noutrefresh
+  win.close
+end
+
+def display(ttt)
+  draw_board
+
+  if winner = ttt.winner
+    status("Player #{winner} has won!!!!")
+  elsif ttt.draw?
+    status("It is a draw...")
+  else
+    status("It is #{ttt.player}`s turn...")
   end
 end
 
-class Log < Window
+def status(message)
+  # pad the status with spaces to replace old characters
+  message += " " * (STATUS_LINE_LENGTH - message.length)
+  write(STATUS_LINE, 0, message)
 end
 
-class Board < Window
-end
+init_screen do
+  ttt = Game.new
 
-class Console < Window
-  def initialize opts = {}
-    super opts
-    @height = 3
+  write(STATUS_LINE+1, 0, "q=Quit r=Reset a=AI-move")
+
+  loop do
+    display ttt
+
+    case Curses.getch
+    when Curses::Key::UP then ttt.move(0,-1)
+    when Curses::Key::DOWN then ttt.move(0,1)
+    when Curses::Key::RIGHT then ttt.move(1,0)
+    when Curses::Key::LEFT then ttt.move(-1,0)
+    when ?a then ttt.ai_move
+    when 10 then ttt.set # enter
+    when ?q then break
+    when ?r then ttt = Game.new
+    end
   end
 end
 
-def two_borders()
-  # make a new window as tall as the screen and half as wide, in the left half
-  # of the screen
-  title_obj   = Title.new
-  board_obj   = Board.new
-  log_obj     = Log.new
-  console_obj = Console.new
 
-  board_obj.height = board_obj.height - ((title_obj.height + console_obj.height) + 4)
-  log_obj.height   = board_obj.height
-
-  board_obj.y = title_obj.height + 1
-  log_obj.y   = board_obj.y
-
-  log_obj.width = (board_obj.width / 3)
-  board_obj.width   = (board_obj.width - log_obj.width) - 2
-  log_obj.x       = board_obj.width + 3
-
-  console_obj.y = board_obj.height + title_obj.height + console_obj.height - 1
-
-
-  title   = title_obj.curses
-  left    = board_obj.curses
-  right   = log_obj.curses
-  console = console_obj.curses
-
-  title.border(*([0]*8))
-  title.addstr("title panel")
-
-
-  left.border(*([0]*8))
-  left.addstr("chess board")
-
-  adj = board_obj.height / 8
-  8.times do |line|
-    left.move(2 + (line * adj) , 2)
-    left.hline('-'.to_c, board_obj.width)
-    left.move(2 + (line * adj) + (adj / 2), 1)
-    left.addstr((line + 1).to_s)
-  end
-
-  adj = board_obj.width / 8
-  r = ('a' .. 'h')
-  8.times do |line|
-    left.move(2, line * adj)
-    left.vline('|'.to_c, board_obj.height)
-    left.move(1, (line * adj) + (adj / 2))
-    left.addstr(r.to_a[line])
-  end
-
-  right.border(*([0]*8))
-  right.addstr("right panel")
-
-  console.border(*([0]*8))
-  console.addstr("console")
-
-  title.noutrefresh() # copy window to virtual screen, don't update real screen
-  left.noutrefresh()
-  right.noutrefresh()
-  console.noutrefresh()
-  Ncurses.doupdate() # update read screen
-  title.getch()
-end
-
-begin
-  # initialize ncurses
-  Ncurses.initscr
-  Ncurses.cbreak           # provide unbuffered input
-  Ncurses.noecho           # turn off input echoing
-  Ncurses.nonl             # turn off newline translation
-  Ncurses.stdscr.intrflush(false) # turn off flush-on-interrupt
-  Ncurses.stdscr.keypad(true)     # turn on keypad mode
-
-  two_borders()          # demo of two windows with borders
-
-ensure
-  Ncurses.echo
-  Ncurses.nocbreak
-  Ncurses.nl
-  Ncurses.endwin
-end
